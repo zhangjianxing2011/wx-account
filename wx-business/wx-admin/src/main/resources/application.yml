@@ -5,3 +5,6 @@ spring:
     active: rock
   application:
     name: wx-admin
+  mvc:
+    servlet:
+      path: /api

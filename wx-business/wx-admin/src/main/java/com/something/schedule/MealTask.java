@@ -1,13 +1,14 @@
 package com.something.schedule;
 
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.something.constants.DateFormatConstant;
 import com.something.constants.MealTyeEnum;
-import com.something.utils.AncdaUtil;
 import com.something.dao.domain.MealEntity;
 import com.something.dao.domain.SignEntity;
 import com.something.dao.service.IMealService;
 import com.something.dao.service.ISignService;
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
+import com.something.utils.AncdaUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +23,6 @@ import java.util.List;
 @Component
 public class MealTask implements ApplicationRunner {
 
-    private static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM");
     private static final String strMonth = "2024-04";
 
     private final IMealService mealService;
@@ -49,6 +48,12 @@ public class MealTask implements ApplicationRunner {
             String lastDay = mealEntity.getTimeNow();
             day = Integer.parseInt(lastDay.split("-")[2]);
             startMonth = getLastDayOfMonth(lastDay);
+
+            LocalDate date = LocalDate.now().plusDays(-1);
+            String today = date.format(DateFormatConstant.STANDARD_FORMAT);
+            if (today.equals(lastDay)) {
+                return;
+            }
         }
         loop(startMonth, day, months);
 
@@ -58,7 +63,7 @@ public class MealTask implements ApplicationRunner {
     public void loop(String startMonth, int day, List<String> months) {
         LocalDate localDate = LocalDate.now();
         int today = localDate.getDayOfMonth();
-        String todayMonth = localDate.format(formatter);
+        String todayMonth = localDate.format(DateFormatConstant.SHORT_FORMAT);
         for (String month : months) {
             if (month.compareTo(startMonth) < 0) {
                 continue;
@@ -129,20 +134,18 @@ public class MealTask implements ApplicationRunner {
     public static String getLastDayOfMonth(String dateStr) {
         LocalDate date = LocalDate.parse(dateStr);
         int lastDayOfMonth = date.lengthOfMonth();
-        System.out.println("lastDayOfMonth:" + lastDayOfMonth);
-        System.out.println("date.getDayOfMonth():" + date.getDayOfMonth());
-        return date.getDayOfMonth() == lastDayOfMonth ? date.plusMonths(1L).format(formatter) : date.format(formatter);
+        return date.getDayOfMonth() == lastDayOfMonth ? date.plusMonths(1L).format(DateFormatConstant.SHORT_FORMAT) : date.format(DateFormatConstant.SHORT_FORMAT);
     }
 
     public List<String> getMonths(){
         List<String> months = new ArrayList<>();
         // Attention 起始时间起始时间与签到一致
-        YearMonth start = YearMonth.parse(strMonth, formatter);
+        YearMonth start = YearMonth.parse(strMonth, DateFormatConstant.SHORT_FORMAT);
         // 结束时间（当前年月）
         YearMonth end = YearMonth.now();
         YearMonth current = start;
         while (!current.isAfter(end)) {
-            months.add(current.format(formatter));
+            months.add(current.format(DateFormatConstant.SHORT_FORMAT));
             current = current.plusMonths(1);
         }
         return months;

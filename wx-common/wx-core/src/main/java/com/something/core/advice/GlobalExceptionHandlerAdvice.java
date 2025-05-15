@@ -50,6 +50,7 @@ public class GlobalExceptionHandlerAdvice {
             DataIntegrityViolationException err = (DataIntegrityViolationException) e;
             return new ResponseEntity<>(new ResultMsg<>(HttpStatus.SERVICE_UNAVAILABLE.value(), "error"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+        System.out.println(e.getMessage());
         return new ResponseEntity<>(new ResultMsg<>(HttpStatus.SERVICE_UNAVAILABLE.value(), "error"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 

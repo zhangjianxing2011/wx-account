@@ -1,17 +1,18 @@
 package com.something.schedule;
 
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.google.common.collect.Lists;
+import com.something.constants.DateFormatConstant;
 import com.something.constants.SignTypeEnum;
 import com.something.constants.SpiderStatusEnum;
-import com.something.utils.AncdaUtil;
-import com.something.utils.OkHttpUtils;
 import com.something.core.utils.SpringUtil;
 import com.something.dao.domain.SignEntity;
 import com.something.dao.domain.SignPictureEntity;
 import com.something.dao.service.ISignPictureService;
 import com.something.dao.service.ISignService;
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
-import com.google.common.collect.Lists;
+import com.something.utils.AncdaUtil;
+import com.something.utils.OkHttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -40,8 +41,6 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class AncdaTask implements ApplicationRunner {
 
-    private static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM");
-    private static DateTimeFormatter dayFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final String strMonth = "2024-04";
 
     private final ISignService signService;
@@ -61,7 +60,7 @@ public class AncdaTask implements ApplicationRunner {
 
     @Scheduled(cron = "0 40-59 16 ? * 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail() {
-        String day = LocalDate.now().format(dayFormatter);
+        String day = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
         log.info("---------------------------爬取今日数据开始:{}--------------------------", day);
         startTask();
         log.info("---------------------------爬取今日数据结束:{}--------------------------", day);
@@ -69,7 +68,7 @@ public class AncdaTask implements ApplicationRunner {
 
     @Scheduled(cron = "0 30-59/5,0-40/10 17,18 ? * 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail2() {
-        String day = LocalDate.now().format(dayFormatter);
+        String day = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
         log.info("---------------------------爬取今日数据开始:{}--------------------------", day);
         startTask();
         log.info("---------------------------爬取今日数据结束:{}--------------------------", day);
@@ -78,7 +77,7 @@ public class AncdaTask implements ApplicationRunner {
     public void startTask() {
         try {
             LocalDate localDate = LocalDate.now();
-            String today = localDate.format(dayFormatter);
+            String today = localDate.format(DateFormatConstant.STANDARD_FORMAT);
             SignEntity signEntity = signService.lambdaQuery().eq(SignEntity::getTimeNow, today).one();
             if (null != signEntity && StringUtils.isNotEmpty(signEntity.getSignInTime())) {
                 return;
@@ -123,12 +122,19 @@ public class AncdaTask implements ApplicationRunner {
 
         LocalDate localDate = LocalDate.now();
         int today = localDate.getDayOfMonth();
-        String todayMonth = localDate.format(formatter);
+        String todayMonth = localDate.format(DateFormatConstant.SHORT_FORMAT);
 
         if (signEntity != null) {
             String lastDay = signEntity.getTimeNow();
             day = Integer.parseInt(lastDay.split("-")[2]);
             startMonth = getLastDayOfMonth(lastDay);
+
+            LocalDate date = LocalDate.now().plusDays(-1);
+            String todayDate = date.format(DateFormatConstant.STANDARD_FORMAT);
+            if (todayDate.equals(lastDay)) {
+                return;
+            }
+
         }
         log.info("爬取签到月份开始:{}", startMonth);
         for (String month : months) {
@@ -226,7 +232,7 @@ public class AncdaTask implements ApplicationRunner {
         int lastDayOfMonth = date.lengthOfMonth();
         System.out.println("lastDayOfMonth:" + lastDayOfMonth);
         System.out.println("date.getDayOfMonth():" + date.getDayOfMonth());
-        return date.getDayOfMonth() == lastDayOfMonth ? date.plusMonths(1L).format(formatter) : date.format(formatter);
+        return date.getDayOfMonth() == lastDayOfMonth ? date.plusMonths(1L).format(DateFormatConstant.SHORT_FORMAT) : date.format(DateFormatConstant.SHORT_FORMAT);
     }
 
     private String imageName(String url) {
@@ -244,11 +250,11 @@ public class AncdaTask implements ApplicationRunner {
     public List<String> getMonths() {
         List<String> months = new ArrayList<>();
         // Attention 起始时间起始时间与签到一致
-        YearMonth start = YearMonth.parse(strMonth, formatter);
+        YearMonth start = YearMonth.parse(strMonth, DateFormatConstant.SHORT_FORMAT);
         YearMonth end = YearMonth.now();
         YearMonth current = start;
         while (!current.isAfter(end)) {
-            months.add(current.format(formatter));
+            months.add(current.format(DateFormatConstant.SHORT_FORMAT));
             current = current.plusMonths(1);
         }
         return months;

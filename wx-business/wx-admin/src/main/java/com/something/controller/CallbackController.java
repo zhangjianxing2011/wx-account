@@ -1,7 +1,6 @@
 package com.something.controller;
 
 import com.something.core.exception.MyException;
-import com.something.dao.service.ISignService;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.mp.api.WxMpMessageRouter;
 import me.chanjar.weixin.mp.api.WxMpService;
@@ -12,6 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -21,8 +23,6 @@ import java.util.Arrays;
 @RequestMapping("/callback")
 public class CallbackController {
     @Autowired
-    public ISignService signService;
-    @Autowired
     private WxMpService wxMpService;
     @Resource
     private WxMpMessageRouter wxMpMessageRouter;
@@ -30,27 +30,28 @@ public class CallbackController {
     @Value("${wx.mp.token}")
     private String token;
 
-    @GetMapping("/init")
-    public String getWxCallback(@RequestParam(value = "signature", required = false) String signature,
+    @GetMapping
+    public void getWxCallback(@RequestParam(value = "signature", required = false) String signature,
                                 @RequestParam(value = "timestamp", required = false) String timestamp,
                                 @RequestParam(value = "nonce", required = false) String nonce,
-                                @RequestParam(value = "echostr", required = false) String echostr) {
+                                @RequestParam(value = "echostr", required = false) String echostr,
+                                HttpServletResponse response) throws IOException {
         log.info("signature:{}, timestamp:{}, nonce:{}, echostr:{}", signature, timestamp, nonce, echostr);
-        signService.getMaxTimeNow();
-        boolean flag = checkSignature(signature, timestamp, nonce);
-        if (flag) {
-            return echostr;
+        if (checkSignature(timestamp, nonce, signature)) {
+            try (PrintWriter writer = response.getWriter()) {
+                writer.println(echostr);
+                writer.flush();
+            }
         }
-        return "";
     }
 
 
-    @PostMapping(value = "/init", produces = "application/xml; charset=UTF-8")
+    @PostMapping(produces = "application/xml; charset=UTF-8")
     public String getWxCallback2(@RequestBody String requestBody, @RequestParam("signature") String signature,
                        @RequestParam("timestamp") String timestamp, @RequestParam("nonce") String nonce,
                        @RequestParam(name = "encrypt_type", required = false) String encType,
                        @RequestParam(name = "msg_signature", required = false) String msgSignature) {
-        log.info("\n接收微信请求：[signature=[{}], encType=[{}], msgSignature=[{}]," + " timestamp=[{}], nonce=[{}], requestBody=[\n{}\n] ", signature, encType, msgSignature, timestamp, nonce, requestBody);
+        log.info("接收微信请求：[signature=[{}], encType=[{}], msgSignature=[{}]," + " timestamp=[{}], nonce=[{}], requestBody=[\n{}\n] ", signature, encType, msgSignature, timestamp, nonce, requestBody);
 
         if (!wxMpService.checkSignature(timestamp, nonce, signature)) {
             throw new IllegalArgumentException("非法请求，可能属于伪造的请求！");
@@ -92,11 +93,8 @@ public class CallbackController {
         }
         return null;
     }
-    
 
-
-
-    private Boolean checkSignature(String signature, String timestamp, String nonce) {
+    private Boolean checkSignature(String timestamp, String nonce, String signature) {
         try {
             String[] array = {token, timestamp, nonce};
             Arrays.sort(array);

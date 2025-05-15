@@ -1,5 +1,7 @@
 package com.something.config;
 
+import com.something.handler.KfSessionHandler;
+import com.something.handler.LogHandler;
 import lombok.RequiredArgsConstructor;
 import me.chanjar.weixin.mp.api.WxMpMessageRouter;
 import me.chanjar.weixin.mp.api.WxMpService;
@@ -13,11 +15,16 @@ import org.springframework.context.annotation.Configuration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static me.chanjar.weixin.common.api.WxConsts.XmlMsgType.EVENT;
+import static me.chanjar.weixin.mp.constant.WxMpEventConstants.CustomerService.*;
+
 @RequiredArgsConstructor
 @Configuration
 @EnableConfigurationProperties(WxMpProperties.class)
 public class WxConfiguration {
     private final WxMpProperties properties;
+    private final KfSessionHandler kfSessionHandler;
+    private final LogHandler logHandler;
 
     @Bean
     public WxMpService wxMpService() {
@@ -43,15 +50,12 @@ public class WxConfiguration {
     public WxMpMessageRouter wxMpMessageRouter(WxMpService wxMpService) {
         final WxMpMessageRouter newRouter = new WxMpMessageRouter(wxMpService);
         // 记录所有事件的日志 （异步执行）
-//        newRouter.rule().handler(this.logHandler).next();
-//
-//        // 接收客服会话管理事件
-//        newRouter.rule().async(false).msgType(EVENT).event(KF_CREATE_SESSION)
-//                .handler(this.kfSessionHandler).end();
-//        newRouter.rule().async(false).msgType(EVENT).event(KF_CLOSE_SESSION)
-//                .handler(this.kfSessionHandler).end();
-//        newRouter.rule().async(false).msgType(EVENT).event(KF_SWITCH_SESSION)
-//                .handler(this.kfSessionHandler).end();
+        newRouter.rule().handler(this.logHandler).next();
+
+        // 接收客服会话管理事件
+        newRouter.rule().async(false).msgType(EVENT).event(KF_CREATE_SESSION).handler(this.kfSessionHandler).end();
+        newRouter.rule().async(false).msgType(EVENT).event(KF_CLOSE_SESSION) .handler(this.kfSessionHandler).end();
+        newRouter.rule().async(false).msgType(EVENT).event(KF_SWITCH_SESSION).handler(this.kfSessionHandler).end();
 //
 //        // 门店审核事件
 //        newRouter.rule().async(false).msgType(EVENT).event(POI_CHECK_NOTIFY).handler(this.storeCheckNotifyHandler).end();
