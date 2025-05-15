@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/qAccount?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDel
+      logic-delete-value: 1
+
+custom:
+  authorization: your_authorization_key
+  static-role: your_role:eg:2
+  static-user: your_user_id
+  pic-path: "C:\\rock\\pictures"
+
+# 公众号配置(必填)
+wx:
+  mp:
+    aesKey:
+    token:
+    secret:
+    appId:

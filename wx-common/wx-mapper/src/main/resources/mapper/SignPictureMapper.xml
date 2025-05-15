@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.something.dao.mapper.SignPictureMapper">
+
+    <resultMap id="BaseResultMap" type="com.something.dao.domain.SignPictureEntity">
+            <id property="id" column="id" />
+            <result property="signId" column="sign_id" />
+            <result property="signPicture" column="sign_picture" />
+            <result property="signPictureOrigin" column="sign_picture_origin" />
+            <result property="spiderStatus" column="spider_status" />
+            <result property="type" column="type" />
+            <result property="createdAt" column="created_at" />
+            <result property="updatedAt" column="updated_at" />
+            <result property="isDel" column="is_del" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,sign_id,sign_picture,sign_picture_origin,spider_status,`type`,created_at,updated_at,is_del,
+
+    </sql>
+</mapper>

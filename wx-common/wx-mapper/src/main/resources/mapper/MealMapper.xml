@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.something.dao.mapper.MealMapper">
+
+    <resultMap id="BaseResultMap" type="com.something.dao.domain.MealEntity">
+            <id property="id" column="id" />
+            <result property="signId" column="sign_id" />
+            <result property="timeNow" column="time_now" />
+            <result property="breakfast" column="breakfast" />
+            <result property="fruit" column="fruit" />
+            <result property="lunch" column="lunch" />
+            <result property="lunchMiddle" column="lunch_middle" />
+            <result property="remark" column="remark" />
+            <result property="orginData" column="orgin_data" />
+            <result property="createdAt" column="created_at" />
+            <result property="updatedAt" column="updated_at" />
+            <result property="isDel" column="is_del" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,sign_id,time_now,breakfast,fruit,lunch,lunch_middle,
+        remark,orgin_data,created_at,updated_at,is_del
+    </sql>
+
+    <select id="getMaxTimeNow" resultType="com.something.dao.domain.MealEntity">
+        select * from meal where time_now = (select max(time_now) from meal)
+    </select>
+</mapper>

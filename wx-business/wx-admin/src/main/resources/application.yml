@@ -1,0 +1,7 @@
+server:
+  port: 9527
+spring:
+  profiles:
+    active: rock
+  application:
+    name: wx-admin
