@@ -68,7 +68,7 @@ public class MealTask implements ApplicationRunner {
             if (month.compareTo(startMonth) < 0) {
                 continue;
             }
-            if (month.equals(todayMonth) && today <= day) {
+            if (month.equals(todayMonth) && today < day) {
                 return;
             }
             for (int i = 1; i < 6; i++) {
