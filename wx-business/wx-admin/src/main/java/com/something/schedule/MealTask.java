@@ -68,17 +68,21 @@ public class MealTask implements ApplicationRunner {
             if (month.compareTo(startMonth) < 0) {
                 continue;
             }
-            if (month.equals(todayMonth) && today < day) {
+            if (month.equals(todayMonth) && today <= day) {
                 return;
             }
-            for (int i = 1; i < 6; i++) {
-                if (month.equals(todayMonth) && day != 0) {
-                    if (i < day / 7) {
-                        continue;
-                    }
+            dayLoop(month, todayMonth, day);
+        }
+    }
+
+    public void dayLoop(String month, String todayMonth, int day) {
+        for (int i = 1; i < 6; i++) {
+            if (month.equals(todayMonth) && day != 0) {
+                if (i < day / 7) {
+                    continue;
                 }
-                getMeat(month, i);
             }
+            getMeat(month, i);
         }
     }
 

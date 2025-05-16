@@ -2,7 +2,6 @@ package com.something.schedule;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.google.common.collect.Lists;
 import com.something.constants.DateFormatConstant;
 import com.something.constants.SignTypeEnum;
 import com.something.constants.SpiderStatusEnum;
@@ -107,7 +106,7 @@ public class AncdaTask implements ApplicationRunner {
                 LocalDate date = LocalDate.parse(entity.getTimeNow(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
                 int day = date.getDayOfMonth();
                 String startMonth = date.format(DateTimeFormatter.ofPattern("yyyy-MM"));
-                SpringUtil.getBean(MealTask.class).loop(startMonth, day, Lists.newArrayList(startMonth));
+                SpringUtil.getBean(MealTask.class).dayLoop(startMonth, startMonth, day);
                 TimeUnit.SECONDS.sleep(2000);
             }
             //TODO rock push public account
