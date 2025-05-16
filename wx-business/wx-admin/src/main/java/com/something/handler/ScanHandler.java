@@ -1,7 +1,5 @@
 package com.something.handler;
 
-import com.something.utils.JsonUtils;
-import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
 import me.chanjar.weixin.common.session.WxSessionManager;
 import me.chanjar.weixin.mp.api.WxMpService;
@@ -14,12 +12,13 @@ import java.util.Map;
 /**
  * https://github.com/binarywang/weixin-java-mp-demo/tree/master/src/main/java/com/github/binarywang/demo/wx/mp/handler
  */
-@Slf4j
 @Component
-public class LogHandler extends AbstractHandler  {
+public class ScanHandler extends AbstractHandler {
+
     @Override
-    public WxMpXmlOutMessage handle(WxMpXmlMessage wxMessage, Map<String, Object> context, WxMpService wxMpService, WxSessionManager sessionManager) throws WxErrorException {
-        log.info("\n接收到请求消息，内容：{}", JsonUtils.toJson(wxMessage));
+    public WxMpXmlOutMessage handle(WxMpXmlMessage wxMpXmlMessage, Map<String, Object> map,
+                                    WxMpService wxMpService, WxSessionManager wxSessionManager) throws WxErrorException {
+        // 扫码事件处理
         return null;
     }
 }

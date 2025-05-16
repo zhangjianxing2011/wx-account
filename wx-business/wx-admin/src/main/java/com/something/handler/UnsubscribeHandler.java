@@ -1,8 +1,6 @@
 package com.something.handler;
 
-import com.something.utils.JsonUtils;
 import lombok.extern.slf4j.Slf4j;
-import me.chanjar.weixin.common.error.WxErrorException;
 import me.chanjar.weixin.common.session.WxSessionManager;
 import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlMessage;
@@ -16,10 +14,14 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class LogHandler extends AbstractHandler  {
+public class UnsubscribeHandler extends AbstractHandler {
+
     @Override
-    public WxMpXmlOutMessage handle(WxMpXmlMessage wxMessage, Map<String, Object> context, WxMpService wxMpService, WxSessionManager sessionManager) throws WxErrorException {
-        log.info("\n接收到请求消息，内容：{}", JsonUtils.toJson(wxMessage));
+    public WxMpXmlOutMessage handle(WxMpXmlMessage wxMessage, Map<String, Object> context,
+                                    WxMpService wxMpService, WxSessionManager sessionManager) {
+        String openId = wxMessage.getFromUser();
+        log.info("取消关注用户 OPENID: " + openId);
+        // TODO 可以更新本地数据库为取消关注状态
         return null;
     }
 }

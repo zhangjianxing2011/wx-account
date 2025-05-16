@@ -15,6 +15,11 @@ import com.something.utils.AncdaUtil;
 import com.something.utils.OkHttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.chanjar.weixin.common.error.WxErrorException;
+import me.chanjar.weixin.mp.api.WxMpService;
+import me.chanjar.weixin.mp.bean.draft.WxMpAddDraft;
+import me.chanjar.weixin.mp.bean.draft.WxMpDraftArticles;
+import me.chanjar.weixin.mp.bean.draft.WxMpDraftList;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +52,7 @@ public class AncdaTask implements ApplicationRunner {
     private final ISignPictureService signPictureService;
     private final AncdaUtil ancdaUtil;
     private final ThreadPoolTaskExecutor imageDownloadThreadPoolExecutor;
+    private final WxMpService wxMpService;
 
 
 
@@ -105,7 +111,22 @@ public class AncdaTask implements ApplicationRunner {
                 TimeUnit.SECONDS.sleep(2000);
             }
             //TODO rock push public account
-        } catch (RuntimeException | InterruptedException e) {
+
+            if (StringUtils.isNotEmpty(entity.getSignInTime())) {
+                WxMpAddDraft draft = new WxMpAddDraft();
+                WxMpDraftArticles articles = new WxMpDraftArticles();
+                articles.setContent("");
+                draft.setArticles(Collections.singletonList(articles));
+//                wxMpService.getDraftService().addDraft(draft);
+                WxMpDraftList draftList = wxMpService.getDraftService().listDraft(0, 1);
+                System.out.println(draftList);
+
+            }
+
+
+
+
+        } catch (RuntimeException | InterruptedException | WxErrorException e) {
             throw new RuntimeException(e);
         }
     }

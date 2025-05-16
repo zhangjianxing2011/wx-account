@@ -2,6 +2,7 @@ package com.something.core.advice;
 
 import com.something.core.constant.ResultMsg;
 import com.something.core.exception.MyException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
  * @Version 1.0
  */
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandlerAdvice {
 
@@ -32,6 +34,7 @@ public class GlobalExceptionHandlerAdvice {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ResultMsg<Object>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
+        log.error("error:{}", e.getMessage());
         return new ResponseEntity<>(new ResultMsg<>(HttpStatus.BAD_REQUEST.value(), "Required request body is missing"), HttpStatus.BAD_REQUEST);
     }
 
@@ -41,6 +44,7 @@ public class GlobalExceptionHandlerAdvice {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     @ResponseBody
     public ResponseEntity<ResultMsg<Object>> httpRequestMethodNotSupportedExceptionHandler(HttpRequestMethodNotSupportedException e) {
+        log.error("error:{}", e.getMessage());
         return new ResponseEntity<>(new ResultMsg<>(HttpStatus.METHOD_NOT_ALLOWED.value(), e.getMessage()), HttpStatus.METHOD_NOT_ALLOWED);
     }
 
@@ -50,12 +54,13 @@ public class GlobalExceptionHandlerAdvice {
             DataIntegrityViolationException err = (DataIntegrityViolationException) e;
             return new ResponseEntity<>(new ResultMsg<>(HttpStatus.SERVICE_UNAVAILABLE.value(), "error"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        System.out.println(e.getMessage());
+
         return new ResponseEntity<>(new ResultMsg<>(HttpStatus.SERVICE_UNAVAILABLE.value(), "error"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ResultMsg<?>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        log.error("error:{}", ex.getMessage());
         FieldError fieldError = ex.getBindingResult().getFieldErrors().stream().sorted(Comparator.comparing(FieldError::getField)).collect(Collectors.toList()).get(0);
         String errorMessage = fieldError != null ? fieldError.getField() + fieldError.getDefaultMessage() : "Request parameter validation failed";
         return new ResponseEntity<>(new ResultMsg<>(HttpStatus.BAD_REQUEST.value(), errorMessage), HttpStatus.BAD_REQUEST);
@@ -63,6 +68,7 @@ public class GlobalExceptionHandlerAdvice {
 
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ResultMsg<?>> handleBindException(BindException ex) {
+        log.error("error:{}", ex.getMessage());
         FieldError fieldError = ex.getBindingResult().getFieldErrors().stream().sorted(Comparator.comparing(FieldError::getField)).collect(Collectors.toList()).get(0);
         String errorMessage = fieldError != null ? fieldError.getField() + " can`t be null" : "Request parameter validation failed";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResultMsg(HttpStatus.BAD_REQUEST.value(), errorMessage));
