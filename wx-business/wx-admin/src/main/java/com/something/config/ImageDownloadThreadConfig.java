@@ -47,4 +47,20 @@ public class ImageDownloadThreadConfig implements SchedulingConfigurer {
         executor.initialize();
         return executor;
     }
+
+
+
+    @Bean(name = "chatThreadPool")
+    public ThreadPoolTaskExecutor webSocketThreadPool() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(2000);
+        executor.setKeepAliveSeconds(60);
+        executor.setThreadNamePrefix("chat-thread-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
 }

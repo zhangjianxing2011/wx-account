@@ -77,7 +77,6 @@ public class CallbackController {
             if (outMessage == null) {
                 return;
             }
-
             out = outMessage.toXml();
         } else if ("aes".equals(encType)) {
             // aes加密的消息
@@ -90,7 +89,6 @@ public class CallbackController {
             }
             out = outMessage.toEncryptedXml(wxMpService.getWxMpConfigStorage());
         }
-
         log.info("\n组装回复信息：{}", out);
         response.setCharacterEncoding("UTF-8");
         try (PrintWriter writer = response.getWriter()) {

@@ -97,6 +97,40 @@ public class OkHttpUtils {
     }
 
     /**
+     * 发送 POST 请求（JSON 格式）
+     *
+     * @param url  请求地址
+     * @param json JSON 请求体
+     * @return 响应结果
+     * @throws IOException 网络异常
+     */
+    public static String postJsonAndHeaders(String url, JSONObject json, Map<String, String> headers) {
+        RequestBody body = RequestBody.create(json.toString(), JSON);
+        Request.Builder builder = new Request.Builder().url(url).post(body);
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            builder.addHeader(entry.getKey(), entry.getValue());
+        }
+        Request request = builder.build();
+        return execute(request);
+    }
+
+    /**
+     * 异步发送请求（POST 示例）
+     *
+     * @param url      请求地址
+     * @param callback 回调处理
+     */
+    public static void asyncPostJsonAndHeaders(String url, JSONObject json, Map<String, String> headers, Callback callback) {
+        RequestBody body = RequestBody.create(json.toString(), JSON);
+        Request.Builder builder = new Request.Builder().url(url).post(body);
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            builder.addHeader(entry.getKey(), entry.getValue());
+        }
+        Request request = builder.build();
+        client.newCall(request).enqueue(callback);
+    }
+
+    /**
      * 发送 POST 请求（表单格式）
      *
      * @param url    请求地址

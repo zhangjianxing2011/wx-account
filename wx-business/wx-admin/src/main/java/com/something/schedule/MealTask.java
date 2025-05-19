@@ -117,6 +117,10 @@ public class MealTask implements ApplicationRunner {
                     fruit += itemObject.getString("dishName") + "、";
                 }
             }
+            MealEntity queryMealEntity = mealService.lambdaQuery().eq(MealEntity::getTimeNow, cookDate).one();
+            if (queryMealEntity != null) {
+                continue;
+            }
             MealEntity mealEntity = new MealEntity();
             mealEntity.setTimeNow(cookDate);
             mealEntity.setBreakfast(breakfast);

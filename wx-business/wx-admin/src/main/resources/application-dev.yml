@@ -27,6 +27,8 @@ wx:
     secret:
     appId:
 
+chat:
+  api-key: your_api_key
 
 logging:
   level:

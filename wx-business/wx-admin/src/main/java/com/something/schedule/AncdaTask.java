@@ -12,13 +12,18 @@ import com.something.dao.service.ISignPictureService;
 import com.something.dao.service.ISignService;
 import com.something.utils.AncdaUtil;
 import com.something.utils.OkHttpUtils;
+import com.something.utils.ProcessingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.chanjar.weixin.common.api.WxConsts;
+import me.chanjar.weixin.common.bean.result.WxMediaUploadResult;
 import me.chanjar.weixin.common.error.WxErrorException;
 import me.chanjar.weixin.mp.api.WxMpService;
+import me.chanjar.weixin.mp.bean.WxMpMassNews;
 import me.chanjar.weixin.mp.bean.draft.WxMpAddDraft;
 import me.chanjar.weixin.mp.bean.draft.WxMpDraftArticles;
 import me.chanjar.weixin.mp.bean.draft.WxMpDraftList;
+import me.chanjar.weixin.mp.bean.material.WxMpNewsArticle;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +33,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -52,6 +58,7 @@ public class AncdaTask implements ApplicationRunner {
     private final AncdaUtil ancdaUtil;
     private final ThreadPoolTaskExecutor imageDownloadThreadPoolExecutor;
     private final WxMpService wxMpService;
+    private final ProcessingUtil processingUtil;
 
 
 
@@ -71,7 +78,7 @@ public class AncdaTask implements ApplicationRunner {
         log.info("---------------------------爬取今日数据结束:{}--------------------------", day);
     }
 
-    @Scheduled(cron = "0 30-59/5,0-40/10 17,18 ? * 1-5", zone = "Asia/Shanghai")
+    @Scheduled(cron = "0  0-30/5,30-59/10,0-59/10 17,17,18 ? * 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail2() {
         String day = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
         log.info("---------------------------爬取今日数据开始:{}--------------------------", day);
@@ -84,10 +91,10 @@ public class AncdaTask implements ApplicationRunner {
             LocalDate localDate = LocalDate.now();
             String today = localDate.format(DateFormatConstant.STANDARD_FORMAT);
             SignEntity signEntity = signService.lambdaQuery().eq(SignEntity::getTimeNow, today).one();
-            if (null != signEntity && StringUtils.isNotEmpty(signEntity.getSignInTime())) {
+            if (null != signEntity && StringUtils.isNotEmpty(signEntity.getSignOutTime())) {
                 return;
             }
-            SignEntity entity = (signEntity == null ? saveSign(today) : signEntity);
+            SignEntity entity = ((signEntity == null || StringUtils.isEmpty(signEntity.getSignOutTime())) ? saveSign(today) : signEntity);
             List<SignPictureEntity> picList = signPictureService.lambdaQuery().eq(SignPictureEntity::getSignId, entity.getId()).eq(SignPictureEntity::getSpiderStatus, SpiderStatusEnum.TODO.getCode()).list();
             //download images
             if (CollectionUtils.isNotEmpty(picList)) {
@@ -189,6 +196,7 @@ public class AncdaTask implements ApplicationRunner {
 
     private SignEntity saveSign(String queryDay) {
         String dailyResult = ancdaUtil.getSingleSign(queryDay);
+        log.info("time: {},sign-result:{}", queryDay, dailyResult);
         JSONArray results = JSONObject.parse(dailyResult).getJSONObject("data").getJSONArray("classes");
         String signInTime = null, signOutTime = null, name = "", signInPic = "", signOutPic = "";
         List<String> signInPics = Collections.emptyList(), signOutPics = Collections.emptyList();
@@ -211,16 +219,25 @@ public class AncdaTask implements ApplicationRunner {
         }
 
         if (CollectionUtils.isNotEmpty(signOutPics)) {
-            signInPic = imageName(signOutPics.get(0));
+            signOutPic = imageName(signOutPics.get(0));
         }
+        SignEntity signEntity = signService.lambdaQuery().eq(SignEntity::getTimeNow, queryDay).one();
         SignEntity addSign = new SignEntity();
-        addSign.setName(name);
-        addSign.setSignInTime(signInTime);
-        addSign.setSignInPic(signInPic);
-        addSign.setSignOutTime(signOutTime);
-        addSign.setSignOutPic(signOutPic);
-        addSign.setTimeNow(queryDay);
-        signService.save(addSign);
+
+        if (signEntity != null) {
+            addSign.setId(signEntity.getId());
+            addSign.setSignOutTime(signOutTime);
+            addSign.setSignOutPic(signOutPic);
+            signService.updateById(addSign);
+        } else {
+            addSign.setName(name);
+            addSign.setSignInTime(signInTime);
+            addSign.setSignInPic(signInPic);
+            addSign.setSignOutTime(signOutTime);
+            addSign.setSignOutPic(signOutPic);
+            addSign.setTimeNow(queryDay);
+            signService.save(addSign);
+        }
 
         if (CollectionUtils.isNotEmpty(signInPics)) {
             List<SignPictureEntity> list = coverToSign(addSign.getId(), signInPics, SignTypeEnum.SIGNING.getCode());
@@ -278,6 +295,35 @@ public class AncdaTask implements ApplicationRunner {
             current = current.plusMonths(1);
         }
         return months;
+    }
+
+
+    public String buildNewsMessage(String openId,String date) {
+        WxMpMassNews news = new WxMpMassNews();
+
+        // 添加图文条目
+        WxMpNewsArticle article1 = new WxMpNewsArticle();
+        article1.setTitle("Java微信公众号开发指南");
+        article1.setThumbMediaId("图片media_id");  // 需提前上传图片获取
+        article1.setUrl("https://example.com/article1");
+
+        news.addArticle(article1);
+
+        WxMpNewsArticle article2 = new WxMpNewsArticle();
+        article2.setTitle("微信API调用技巧");
+        article2.setThumbMediaId("图片media_id");
+        article2.setUrl("https://example.com/article2");
+
+        news.addArticle(article2);
+        return "";
+    }
+
+
+    public String uploadImage(String imagePath) throws WxErrorException {
+        WxMediaUploadResult result = wxMpService.getMaterialService()
+                .mediaUpload(WxConsts.MediaFileType.IMAGE,
+                        new File(imagePath));
+        return result.getMediaId();
     }
 
 }
