@@ -33,6 +33,5 @@ chat:
 logging:
   level:
     org.springframework.web: INFO
-    com.github.binarywang.demo.wx.mp: DEBUG
     me.chanjar.weixin: DEBUG
     com.something: DEBUG

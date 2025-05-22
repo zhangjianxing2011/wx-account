@@ -2,28 +2,29 @@ package com.something.schedule;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.google.common.collect.Lists;
 import com.something.constants.DateFormatConstant;
 import com.something.constants.SignTypeEnum;
 import com.something.constants.SpiderStatusEnum;
 import com.something.core.utils.SpringUtil;
+import com.something.dao.domain.MealEntity;
 import com.something.dao.domain.SignEntity;
 import com.something.dao.domain.SignPictureEntity;
+import com.something.dao.service.IMealService;
 import com.something.dao.service.ISignPictureService;
 import com.something.dao.service.ISignService;
 import com.something.utils.AncdaUtil;
 import com.something.utils.OkHttpUtils;
-import com.something.utils.ProcessingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.api.WxConsts;
-import me.chanjar.weixin.common.bean.result.WxMediaUploadResult;
 import me.chanjar.weixin.common.error.WxErrorException;
 import me.chanjar.weixin.mp.api.WxMpService;
-import me.chanjar.weixin.mp.bean.WxMpMassNews;
 import me.chanjar.weixin.mp.bean.draft.WxMpAddDraft;
 import me.chanjar.weixin.mp.bean.draft.WxMpDraftArticles;
-import me.chanjar.weixin.mp.bean.draft.WxMpDraftList;
-import me.chanjar.weixin.mp.bean.material.WxMpNewsArticle;
+import me.chanjar.weixin.mp.bean.material.WxMediaImgUploadResult;
+import me.chanjar.weixin.mp.bean.material.WxMpMaterial;
+import me.chanjar.weixin.mp.bean.material.WxMpMaterialUploadResult;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,13 +53,14 @@ import java.util.concurrent.TimeUnit;
 public class AncdaTask implements ApplicationRunner {
 
     private static final String strMonth = "2024-04";
+    private static volatile boolean flag = true;
 
     private final ISignService signService;
     private final ISignPictureService signPictureService;
+    private final IMealService mealService;
     private final AncdaUtil ancdaUtil;
     private final ThreadPoolTaskExecutor imageDownloadThreadPoolExecutor;
     private final WxMpService wxMpService;
-    private final ProcessingUtil processingUtil;
 
 
 
@@ -80,6 +82,9 @@ public class AncdaTask implements ApplicationRunner {
 
     @Scheduled(cron = "0  0-30/5,30-59/10,0-59/10 17,17,18 ? * 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail2() {
+        if (!flag) {
+            return;
+        }
         String day = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
         log.info("---------------------------爬取今日数据开始:{}--------------------------", day);
         startTask();
@@ -103,7 +108,7 @@ public class AncdaTask implements ApplicationRunner {
                         try {
                             OkHttpUtils.downloadImageSync(item.getSignPictureOrigin(), picPath + "/" + item.getSignPicture());
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            log.error("下载图片失败:{}", e.getMessage());
                         }
                     });
                 }
@@ -116,23 +121,28 @@ public class AncdaTask implements ApplicationRunner {
                 SpringUtil.getBean(MealTask.class).dayLoop(startMonth, startMonth, day);
                 TimeUnit.SECONDS.sleep(2000);
             }
-            //TODO rock push public account
 
-            if (StringUtils.isNotEmpty(entity.getSignInTime())) {
-                WxMpAddDraft draft = new WxMpAddDraft();
-                WxMpDraftArticles articles = new WxMpDraftArticles();
-                articles.setContent("");
-                draft.setArticles(Collections.singletonList(articles));
-//                wxMpService.getDraftService().addDraft(draft);
-                WxMpDraftList draftList = wxMpService.getDraftService().listDraft(0, 1);
-                System.out.println(draftList);
-
+            if (StringUtils.isNotEmpty(entity.getSignOutTime())) {
+                String mediaId = uploadPicture(entity.getSignInPic());
+                String imgUrl = mediaImgUpload(entity.getSignInPic());
+                String content = "早餐:%s \r\n午餐:%s \r\n水果:%s \r\n下午点心:%s \r\n今日签退时间:%s \r\n%s";
+                MealEntity meal = mealService.lambdaQuery().eq(MealEntity::getSignId, entity.getId()).one();
+                String detailContent = String.format(content, entity.getTimeNow() + " " + entity.getSignOutTime(), meal.getBreakfast(), meal.getLunch(), meal.getFruit(), meal.getLunchMiddle(), imgUrl);
+                WxMpDraftArticles article = WxMpDraftArticles.builder().build()
+                        .setTitle(entity.getTimeNow())
+                        .setContent(detailContent)
+                        .setNeedOpenComment(1)
+                        .setOnlyFansCanComment(1)
+                        .setAuthor("AL")
+                        .setThumbMediaId(mediaId);
+                WxMpAddDraft addDraft = WxMpAddDraft.builder().build().setArticles(Lists.newArrayList(article));
+                log.info("发布内容:{}", addDraft);
+                String result = wxMpService.getDraftService().addDraft(addDraft);
+                log.info("发布结果:{}", result);
+                wxMpService.getFreePublishService().submit(result);
             }
-
-
-
-
         } catch (RuntimeException | InterruptedException | WxErrorException e) {
+            log.error("数据异常:{}", e.getMessage());
             throw new RuntimeException(e);
         }
     }
@@ -205,11 +215,11 @@ public class AncdaTask implements ApplicationRunner {
             JSONObject detailData = JSONObject.parseObject(signDetail.toString());
             name = detailData.getString("name");
             int timeSlotNum = detailData.getInteger("timeSlotNum");
-            if (timeSlotNum == 1) {
+            if (timeSlotNum == 1) {//签到
                 signInTime = detailData.getString("signTime");
                 signInPics = detailData.getList("signCapture", String.class);
             }
-            if (timeSlotNum == 2) {
+            if (timeSlotNum == 2) {//签退
                 signOutTime = StringUtils.isNotEmpty(detailData.getString("signTime")) ? detailData.getString("signTime") : null;
                 signOutPics = detailData.getList("signCapture", String.class);
             }
@@ -221,10 +231,17 @@ public class AncdaTask implements ApplicationRunner {
         if (CollectionUtils.isNotEmpty(signOutPics)) {
             signOutPic = imageName(signOutPics.get(0));
         }
+
+        String today = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
+        setFlag(queryDay, today, signOutTime);
+
         SignEntity signEntity = signService.lambdaQuery().eq(SignEntity::getTimeNow, queryDay).one();
         SignEntity addSign = new SignEntity();
 
         if (signEntity != null) {
+            if (StringUtils.isEmpty(signOutTime)) {
+                return signEntity;
+            }
             addSign.setId(signEntity.getId());
             addSign.setSignOutTime(signOutTime);
             addSign.setSignOutPic(signOutPic);
@@ -283,7 +300,6 @@ public class AncdaTask implements ApplicationRunner {
         return url.substring(lastIndex + 1);
     }
 
-
     public List<String> getMonths() {
         List<String> months = new ArrayList<>();
         // Attention 起始时间起始时间与签到一致
@@ -297,33 +313,24 @@ public class AncdaTask implements ApplicationRunner {
         return months;
     }
 
-
-    public String buildNewsMessage(String openId,String date) {
-        WxMpMassNews news = new WxMpMassNews();
-
-        // 添加图文条目
-        WxMpNewsArticle article1 = new WxMpNewsArticle();
-        article1.setTitle("Java微信公众号开发指南");
-        article1.setThumbMediaId("图片media_id");  // 需提前上传图片获取
-        article1.setUrl("https://example.com/article1");
-
-        news.addArticle(article1);
-
-        WxMpNewsArticle article2 = new WxMpNewsArticle();
-        article2.setTitle("微信API调用技巧");
-        article2.setThumbMediaId("图片media_id");
-        article2.setUrl("https://example.com/article2");
-
-        news.addArticle(article2);
-        return "";
+    public void setFlag(String queryDay, String today, String signOutTime) {
+        if (!today.equals(queryDay)) {
+            return;
+        }
+        flag = StringUtils.isEmpty(signOutTime);
     }
 
+    public String uploadPicture(String picture) throws WxErrorException {
+        WxMpMaterial material = new WxMpMaterial();
+        material.setFile(new File(picPath + "/" + picture));
+        material.setName("signOutPicture" + picture);
+        WxMpMaterialUploadResult uploadResult = wxMpService.getMaterialService().materialFileUpload(WxConsts.MediaFileType.IMAGE, material);
+        return uploadResult.getMediaId();
+    }
 
-    public String uploadImage(String imagePath) throws WxErrorException {
-        WxMediaUploadResult result = wxMpService.getMaterialService()
-                .mediaUpload(WxConsts.MediaFileType.IMAGE,
-                        new File(imagePath));
-        return result.getMediaId();
+    public String  mediaImgUpload(String picture) throws WxErrorException {
+        WxMediaImgUploadResult uploadResult = wxMpService.getMaterialService().mediaImgUpload(new File(picPath + "/" + picture));
+        return uploadResult.getUrl();
     }
 
 }

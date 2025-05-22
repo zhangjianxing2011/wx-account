@@ -35,12 +35,11 @@ public class WebMvcConfigure implements WebMvcConfigurer {
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         // 第一种方式是将 json 处理的转换器放到第一位，使得先让 json 转换器处理返回值，这样 String转换器就处理不了了。
         converters.add(0, new MappingJackson2HttpMessageConverter());
-        //?????????*1000000w
 //        converters = converters.stream().distinct().collect(Collectors.toList());
 //        converters.forEach(item -> {
 //            System.out.println(item.getClass().getName());
 //        });
-        // 第二种就是把String类型的转换器去掉，不使用String类型的转换器
+//         第二种就是把String类型的转换器去掉，不使用String类型的转换器
 //        converters.removeIf(httpMessageConverter -> httpMessageConverter instanceof StringHttpMessageConverter);
     }
 

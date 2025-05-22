@@ -1,8 +1,16 @@
 package com.something.controller;
 
+import com.alibaba.fastjson2.JSONObject;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
 import com.something.core.exception.MyException;
+import com.something.dto.JsonRequest;
 import com.something.utils.JsonUtils;
+import com.something.utils.MarkdownToXmlConverter;
+import com.something.utils.OkHttpUtils;
+import com.something.utils.TextBuilder;
 import lombok.extern.slf4j.Slf4j;
+import me.chanjar.weixin.common.api.WxConsts;
 import me.chanjar.weixin.common.bean.menu.WxMenu;
 import me.chanjar.weixin.mp.api.WxMpMessageRouter;
 import me.chanjar.weixin.mp.api.WxMpService;
@@ -12,6 +20,7 @@ import me.chanjar.weixin.mp.bean.message.WxMpXmlMessage;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlOutMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -21,20 +30,36 @@ import java.io.PrintWriter;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.*;
 
 @Slf4j
 @RestController
 @RequestMapping("/callback")
 public class CallbackController {
+    private final Long outTime = 4800L;
+    private final Long secondTime = 4000L;
+    private final TimeUnit outTimeUnit = TimeUnit.MILLISECONDS;
+    public static final ConcurrentHashMap<Long, Future<String>> map = new ConcurrentHashMap<>();
+
+
     @Autowired
     private WxMpService wxMpService;
     @Resource
     private WxMpMessageRouter wxMpMessageRouter;
+    @Autowired
+    private ThreadPoolTaskExecutor chatThreadPool;
+
 
     @Value("${wx.mp.token}")
     private String token;
     @Value("${wx.mp.appId}")
     private String appId;
+    @Value("${chat.api-key}")
+    private String apiKey;
+    @Value("${custom.pic-path}")
+    private String picPath;
 
     @GetMapping
     public void getWxCallback(@RequestParam(value = "signature", required = false) String signature,
@@ -61,20 +86,26 @@ public class CallbackController {
                                      @RequestParam("nonce") String nonce,
                                      @RequestParam(name = "encrypt_type", required = false) String encType,
                                      @RequestParam(name = "msg_signature", required = false) String msgSignature,
-                                     HttpServletResponse response) throws IOException {
+                                     HttpServletResponse response) throws IOException, ExecutionException, InterruptedException, TimeoutException {
         log.info("接收微信请求：[signature=[{}], encType=[{}], msgSignature=[{}]," + " timestamp=[{}], nonce=[{}], requestBody=[\n{}\n] ", signature, encType, msgSignature, timestamp, nonce, requestBody);
 
         if (!checkSignature(timestamp, nonce, signature)) {
             throw new IllegalArgumentException("非法请求，可能属于伪造的请求！");
         }
-
+        Long messageId = null;
         String out = null;
         if (encType == null) {
             // 明文传输的消息
             WxMpXmlMessage inMessage = WxMpXmlMessage.fromXml(requestBody);
-            WxMpXmlOutMessage outMessage = route(inMessage);
-            log.info("返回消息：{}", outMessage);
+            WxMpXmlOutMessage outMessage = null;
+            messageId = inMessage.getMsgId();
+            if (!WxConsts.XmlMsgType.TEXT.equals(inMessage.getMsgType())) {
+                outMessage = route(inMessage);
+            } else {
+                outMessage = getOutMessage(outMessage, inMessage);
+            }
             if (outMessage == null) {
+                response.getOutputStream().close();
                 return;
             }
             out = outMessage.toXml();
@@ -85,19 +116,22 @@ public class CallbackController {
             log.debug("\n消息解密后内容为：\n{} ", inMessage.toString());
             WxMpXmlOutMessage outMessage = this.route(inMessage);
             if (outMessage == null) {
-                return;
+                throw new MyException(500, "no message here!");
             }
             out = outMessage.toEncryptedXml(wxMpService.getWxMpConfigStorage());
         }
         log.info("\n组装回复信息：{}", out);
         response.setCharacterEncoding("UTF-8");
         try (PrintWriter writer = response.getWriter()) {
+            if (null != messageId) {
+                map.remove(messageId);
+            }
             writer.println(out);
             writer.flush();
         }
     }
 
-    @GetMapping("/test")
+    @GetMapping("/test2")
     public void testDraft() {
         try {
             WxMpDraftList draftList = wxMpService.getDraftService().listDraft(0, 1);
@@ -116,8 +150,6 @@ public class CallbackController {
             e.printStackTrace();
         }
     }
-
-
 
     @GetMapping("/setMenu")
     public void setMenu() {
@@ -168,4 +200,77 @@ public class CallbackController {
         }
         return false;
     }
+
+    private String gemini(String question) {
+        JsonRequest.Part part = new JsonRequest.Part(question);
+        JsonRequest.Content content = new JsonRequest.Content(Lists.newArrayList(part));
+        JsonRequest request = new JsonRequest(Lists.newArrayList(content));
+        Gson gson = new Gson();
+
+        String json = gson.toJson(request);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("x-goog-api-key", apiKey);
+        headers.put("Content-Type", "application/json");
+        String result = OkHttpUtils.postJsonAndHeaders("https://text.somethingeval.com", JSONObject.parseObject(json), headers);
+        log.info("result:{}", result);
+        JSONObject jsonObject = JSONObject.parseObject(result);
+        return jsonObject.getString("result");
+    }
+
+
+    private WxMpXmlOutMessage getOutMessage(WxMpXmlOutMessage outMessage, WxMpXmlMessage inMessage) throws InterruptedException {
+        Long messageId = inMessage.getMsgId();
+        long start = System.currentTimeMillis();
+        Future<String> future = map.get(messageId);
+        log.info("thread-name:{},future:{}", Thread.currentThread().getName(), future);
+        String threadName = Thread.currentThread().getName();
+        String res;
+
+        if (future == null) {//第一次
+            future = chatThreadPool.submit(() -> gemini(inMessage.getContent()));
+            try {
+                res = future.get(outTime, outTimeUnit);
+                long end = System.currentTimeMillis();
+                log.info("线程：{} 执行完gemini任务，任务成功返回，耗时：{} 毫秒，结果：{}", threadName, end - start, res);
+                if (future.isDone()) {
+                    outMessage = new TextBuilder().build(MarkdownToXmlConverter.convert(res), inMessage, wxMpService);
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                log.error("线程：{} 获取第一次请求的结果，异常:{}", threadName, e.getMessage());
+            } catch (TimeoutException e) {
+                long end = System.currentTimeMillis();
+                log.error("线程：{} 执行完gemini任务，耗时{}毫秒，任务超时,feature:{}", threadName, end - start, future);
+                // TODO 超时了，任务添加到map，直接返回，不管了，让后面的请求重试
+                map.put(messageId, future);
+            }
+            return outMessage;
+        }
+
+        if (future.isDone()) {
+            log.info("<-----线程：{}  here you are done----->", Thread.currentThread().getName());
+            try {
+                String result = future.get(outTime, TimeUnit.MILLISECONDS);
+                log.info("result done:{}", result);
+                outMessage = new TextBuilder().build(MarkdownToXmlConverter.convert(result), inMessage, wxMpService);
+            } catch (RuntimeException | ExecutionException | TimeoutException e) {
+                log.error("future isDone result error:{}", e.getMessage());
+                throw new RuntimeException(e);
+            }
+            return outMessage;
+        }
+
+        log.info("<-----线程：{}  here you are wait----->", Thread.currentThread().getName());
+        TimeUnit.SECONDS.sleep(1);
+        try {
+            String result = future.get(secondTime, TimeUnit.MILLISECONDS);
+            log.info("result wait:{}", result);
+            outMessage = new TextBuilder().build(MarkdownToXmlConverter.convert(result), inMessage, wxMpService);
+        } catch (RuntimeException | ExecutionException | TimeoutException e) {
+            log.error("future wait result error:{}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+        return outMessage;
+    }
+
 }

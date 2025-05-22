@@ -23,6 +23,7 @@ public class ImageDownloadThreadConfig implements SchedulingConfigurer {
         scheduler.setThreadNamePrefix("admin-Scheduling-");
         scheduler.setThreadPriority(3);
         scheduler.setPoolSize(6);//((ScheduledThreadPoolExecutor)this.scheduledExecutor).setCorePoolSize(poolSize);
+        scheduler.initialize();
         return scheduler;
     }
 
@@ -54,9 +55,10 @@ public class ImageDownloadThreadConfig implements SchedulingConfigurer {
     public ThreadPoolTaskExecutor webSocketThreadPool() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(10);
+        executor.setMaxPoolSize(32);
         executor.setQueueCapacity(2000);
         executor.setKeepAliveSeconds(60);
+        executor.setDaemon(true);
         executor.setThreadNamePrefix("chat-thread-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
