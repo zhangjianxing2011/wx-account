@@ -20,9 +20,9 @@ public class ImageDownloadThreadConfig implements SchedulingConfigurer {
     @Bean("scheduledThreadPoolExecutor")
     public Executor scheduledThreadPoolExecutor() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setThreadNamePrefix("admin-Scheduling-");
+        scheduler.setThreadNamePrefix("hi-Scheduling-");
         scheduler.setThreadPriority(3);
-        scheduler.setPoolSize(6);//((ScheduledThreadPoolExecutor)this.scheduledExecutor).setCorePoolSize(poolSize);
+        scheduler.setPoolSize(12);//((ScheduledThreadPoolExecutor)this.scheduledExecutor).setCorePoolSize(poolSize);
         scheduler.initialize();
         return scheduler;
     }
@@ -58,7 +58,7 @@ public class ImageDownloadThreadConfig implements SchedulingConfigurer {
         executor.setMaxPoolSize(32);
         executor.setQueueCapacity(2000);
         executor.setKeepAliveSeconds(60);
-        executor.setDaemon(true);
+        executor.setDaemon(false);
         executor.setThreadNamePrefix("chat-thread-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();

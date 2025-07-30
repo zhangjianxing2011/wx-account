@@ -30,8 +30,6 @@ public class BaseResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         // 在此处拦截到feign标识字段, 则直接放行 返回body.
         if (body instanceof ResultMsg) {
             return body;
-        } else if (body instanceof String) {
-            return new ResultMsg<>(body.toString());
         } else {
             return new ResultMsg<>(body);
         }

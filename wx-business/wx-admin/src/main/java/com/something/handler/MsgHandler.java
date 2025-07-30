@@ -23,9 +23,9 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
- * https://github.com/binarywang/weixin-java-mp-demo/tree/master/src/main/java/com/github/binarywang/demo/wx/mp/handler
+ * <a href="https://github.com/binarywang/weixin-java-mp-demo/tree/master/src/main/java/com/github/binarywang/demo/wx/mp/handler">...</a>
  *
- * https://juejin.cn/post/7289394615384555580
+ * <a href="https://juejin.cn/post/7289394615384555580" />...</a>
  */
 
 @Slf4j
@@ -48,11 +48,11 @@ public class MsgHandler extends AbstractHandler {
         long start = System.currentTimeMillis();
         Long messageId = wxMessage.getMsgId();
         Future<String> future = map.get(messageId);
+
         String threadName = Thread.currentThread().getName();
         String res;
         if (future == null) {
-
-            log.info("<-----线程：{} 开始执行完gemini任务----->", threadName);
+            log.error("<-----开始执行完gemini任务----->");
             future = chatThreadPool.submit(() -> gemini(wxMessage.getContent()));
             try {
                 res = future.get(outTime, outTimeUnit);

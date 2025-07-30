@@ -1,9 +1,10 @@
-package com.something.schedule;
+package com.something.task;
 
+import com.something.config.CustomConfigProperties;
 import com.something.constants.SpiderStatusEnum;
-import com.something.utils.OkHttpUtils;
 import com.something.dao.domain.SignPictureEntity;
 import com.something.dao.service.ISignPictureService;
+import com.something.utils.OkHttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
@@ -25,13 +26,17 @@ import java.util.concurrent.locks.ReentrantLock;
 public class DownloadImgTask {
 
     private final ISignPictureService signPictureService;
+    private final CustomConfigProperties customConfigProperties;
 
     @Value("${custom.pic-path}")
     private String picPath;
 
     ReentrantLock lock = new ReentrantLock();
-    @Scheduled(cron = "0 */30 6,7 * * ?")
+    @Scheduled(cron = "0 */30 6,7 * 1-7,9-12 1-5")
     public void pictureDownload() {
+        if (!customConfigProperties.getTaskStatus()) {
+            return;
+        }
         try {
             lock.lock();
             List<SignPictureEntity> list = signPictureService.lambdaQuery().eq(SignPictureEntity::getSpiderStatus, SpiderStatusEnum.TODO.getCode()).list();
@@ -72,8 +77,6 @@ public class DownloadImgTask {
 
     public static void main(String[] args) throws IOException {
         String url = "http://mediatx.ancda.com/0751074017/20240515/171576205308420.jpg";
-
-        OkHttpUtils.downloadImageSync(url, new DownloadImgTask(null).picPath + "/" + "test.jpg");
 
     }
 

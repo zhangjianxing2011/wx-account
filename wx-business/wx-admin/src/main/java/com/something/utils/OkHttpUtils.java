@@ -26,7 +26,7 @@ public class OkHttpUtils {
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
-                .connectionPool(new ConnectionPool(6, 1, TimeUnit.MINUTES))
+                .connectionPool(new ConnectionPool(12, 1, TimeUnit.MINUTES))
                 .build();
     }
 

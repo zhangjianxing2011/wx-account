@@ -61,6 +61,7 @@ public class WxConfiguration {
         newRouter.rule().async(false).msgType(EVENT).event(KF_CREATE_SESSION).handler(this.kfSessionHandler).end();
         newRouter.rule().async(false).msgType(EVENT).event(KF_CLOSE_SESSION) .handler(this.kfSessionHandler).end();
         newRouter.rule().async(false).msgType(EVENT).event(KF_SWITCH_SESSION).handler(this.kfSessionHandler).end();
+        newRouter.rule().async(false).msgType("PUBLISHJOBFINISH").event(WxConsts.XmlMsgType.EVENT).handler(this.kfSessionHandler).end();
 //
 //        // 门店审核事件
 //        newRouter.rule().async(false).msgType(EVENT).event(POI_CHECK_NOTIFY).handler(this.storeCheckNotifyHandler).end();

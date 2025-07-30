@@ -1,8 +1,9 @@
-package com.something.schedule;
+package com.something.task;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.google.common.collect.Lists;
+import com.something.config.CustomConfigProperties;
 import com.something.constants.DateFormatConstant;
 import com.something.constants.SignTypeEnum;
 import com.something.constants.SpiderStatusEnum;
@@ -61,6 +62,8 @@ public class AncdaTask implements ApplicationRunner {
     private final AncdaUtil ancdaUtil;
     private final ThreadPoolTaskExecutor imageDownloadThreadPoolExecutor;
     private final WxMpService wxMpService;
+    private final CustomConfigProperties customConfigProperties;
+
 
 
 
@@ -69,10 +72,13 @@ public class AncdaTask implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        if (!customConfigProperties.getTaskStatus()) {
+            return;
+        }
         fetchSignHistoryData();
     }
 
-    @Scheduled(cron = "0 40-59 16 ? * 1-5", zone = "Asia/Shanghai")
+    @Scheduled(cron = "0 40-59 16 ? 1-7,9-12 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail() {
         String day = LocalDate.now().format(DateFormatConstant.STANDARD_FORMAT);
         log.info("---------------------------爬取今日数据开始:{}--------------------------", day);
@@ -80,7 +86,7 @@ public class AncdaTask implements ApplicationRunner {
         log.info("---------------------------爬取今日数据结束:{}--------------------------", day);
     }
 
-    @Scheduled(cron = "0  0-30/5,30-59/10,0-59/10 17,17,18 ? * 1-5", zone = "Asia/Shanghai")
+    @Scheduled(cron = "0  0-30/5,30-59/10,0-30/10,30-59/10 17,17,18,18 ? 1-7,9-12 1-5", zone = "Asia/Shanghai")
     public void getTodaySignDetail2() {
         if (!flag) {
             return;
@@ -115,21 +121,27 @@ public class AncdaTask implements ApplicationRunner {
             }
             //get meal today
             if (signEntity == null) {
-                LocalDate date = LocalDate.parse(entity.getTimeNow(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                LocalDate date = LocalDate.parse(today, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
                 int day = date.getDayOfMonth();
                 String startMonth = date.format(DateTimeFormatter.ofPattern("yyyy-MM"));
                 SpringUtil.getBean(MealTask.class).dayLoop(startMonth, startMonth, day);
-                TimeUnit.SECONDS.sleep(2000);
+                TimeUnit.SECONDS.sleep(2);
             }
 
             if (StringUtils.isNotEmpty(entity.getSignOutTime())) {
-                String mediaId = uploadPicture(entity.getSignInPic());
-                String imgUrl = mediaImgUpload(entity.getSignInPic());
-                String content = "早餐:%s \r\n午餐:%s \r\n水果:%s \r\n下午点心:%s \r\n今日签退时间:%s \r\n%s";
+                String mediaId = uploadPicture(entity.getSignOutPic());
+                String imgUrl = mediaImgUpload(entity.getSignOutPic());
                 MealEntity meal = mealService.lambdaQuery().eq(MealEntity::getSignId, entity.getId()).one();
-                String detailContent = String.format(content, entity.getTimeNow() + " " + entity.getSignOutTime(), meal.getBreakfast(), meal.getLunch(), meal.getFruit(), meal.getLunchMiddle(), imgUrl);
+                String imageTag = "<img src=\"" + imgUrl + "\" alt=\"图片描述\" style=\"width:100%;max-width:640px;\">";
+                String content = "<p>今日签退时间:  %s</p><br />" ;
+                if (meal != null) {
+                    content = "<p>今日签退时间:  %s</p><br /><p>早餐:  %s</p><br /><p>午餐:  %s</p><br /><p>水果:  %s</p><br /><p>下午点心:  %s</p><br />";
+                }
+
+                String detailContent = meal == null ? String.format(content, today + " " + entity.getSignOutTime()) : String.format(content, today + "&nbsp;" + entity.getSignOutTime(), meal.getBreakfast(), meal.getLunch(), meal.getFruit(), meal.getLunchMiddle());
+                detailContent += imageTag;
                 WxMpDraftArticles article = WxMpDraftArticles.builder().build()
-                        .setTitle(entity.getTimeNow())
+                        .setTitle(today)
                         .setContent(detailContent)
                         .setNeedOpenComment(1)
                         .setOnlyFansCanComment(1)
@@ -323,7 +335,7 @@ public class AncdaTask implements ApplicationRunner {
     public String uploadPicture(String picture) throws WxErrorException {
         WxMpMaterial material = new WxMpMaterial();
         material.setFile(new File(picPath + "/" + picture));
-        material.setName("signOutPicture" + picture);
+        material.setName(picture);
         WxMpMaterialUploadResult uploadResult = wxMpService.getMaterialService().materialFileUpload(WxConsts.MediaFileType.IMAGE, material);
         return uploadResult.getMediaId();
     }

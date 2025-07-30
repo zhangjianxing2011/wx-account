@@ -24,7 +24,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.security.MessageDigest;
@@ -36,12 +38,12 @@ import java.util.concurrent.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/callback")
 public class CallbackController {
-    private final Long outTime = 4800L;
-    private final Long secondTime = 4000L;
+    private final Long outTime = 4750L;
+    private final Long secondTime = 3000L;
     private final TimeUnit outTimeUnit = TimeUnit.MILLISECONDS;
     public static final ConcurrentHashMap<Long, Future<String>> map = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, Boolean> bMap = new ConcurrentHashMap<>();
 
 
     @Autowired
@@ -61,7 +63,7 @@ public class CallbackController {
     @Value("${custom.pic-path}")
     private String picPath;
 
-    @GetMapping
+    @GetMapping("/callback")
     public void getWxCallback(@RequestParam(value = "signature", required = false) String signature,
                               @RequestParam(value = "timestamp", required = false) String timestamp,
                               @RequestParam(value = "nonce", required = false) String nonce,
@@ -79,7 +81,7 @@ public class CallbackController {
     }
 
 
-    @PostMapping(produces = "application/xml; charset=UTF-8")
+    @PostMapping(value = "/callback", produces = "application/xml; charset=UTF-8")
     public void getWxCallbackContent(@RequestBody String requestBody,
                                      @RequestParam("signature") String signature,
                                      @RequestParam("timestamp") String timestamp,
@@ -94,44 +96,56 @@ public class CallbackController {
         }
         Long messageId = null;
         String out = null;
-        if (encType == null) {
-            // 明文传输的消息
-            WxMpXmlMessage inMessage = WxMpXmlMessage.fromXml(requestBody);
-            WxMpXmlOutMessage outMessage = null;
-            messageId = inMessage.getMsgId();
-            if (!WxConsts.XmlMsgType.TEXT.equals(inMessage.getMsgType())) {
-                outMessage = route(inMessage);
-            } else {
-                outMessage = getOutMessage(outMessage, inMessage);
+        try {
+            if (encType == null) {
+                // 明文传输的消息
+                WxMpXmlMessage inMessage = WxMpXmlMessage.fromXml(requestBody);
+                WxMpXmlOutMessage outMessage = null;
+                messageId = inMessage.getMsgId();
+                if (!WxConsts.XmlMsgType.TEXT.equals(inMessage.getMsgType())) {
+                    outMessage = route(inMessage);
+                } else {
+                    outMessage = getOutMessage(outMessage, inMessage);
+                }
+                if (outMessage == null) {
+                    log.error("outMessage is null");
+                    long sleepSeconds = (null == bMap.get(inMessage.getMsgId())) ? 8L : 5L;
+                    TimeUnit.SECONDS.sleep(sleepSeconds);
+//                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+//                    response.getOutputStream().close();
+                    return;
+                }
+                outMessage.setCreateTime(inMessage.getCreateTime() + 4);
+                out = outMessage.toXml();
+            } else if ("aes".equals(encType)) {
+                // aes加密的消息
+                WxMpXmlMessage inMessage = WxMpXmlMessage.fromEncryptedXml(requestBody,
+                        wxMpService.getWxMpConfigStorage(), timestamp, nonce, msgSignature);
+                log.debug("\n消息解密后内容为：\n{} ", inMessage.toString());
+                WxMpXmlOutMessage outMessage = this.route(inMessage);
+                if (outMessage == null) {
+                    throw new MyException(500, "no message here!");
+                }
+
+                out = outMessage.toEncryptedXml(wxMpService.getWxMpConfigStorage());
             }
-            if (outMessage == null) {
-                response.getOutputStream().close();
-                return;
-            }
-            out = outMessage.toXml();
-        } else if ("aes".equals(encType)) {
-            // aes加密的消息
-            WxMpXmlMessage inMessage = WxMpXmlMessage.fromEncryptedXml(requestBody,
-                    wxMpService.getWxMpConfigStorage(), timestamp, nonce, msgSignature);
-            log.debug("\n消息解密后内容为：\n{} ", inMessage.toString());
-            WxMpXmlOutMessage outMessage = this.route(inMessage);
-            if (outMessage == null) {
-                throw new MyException(500, "no message here!");
-            }
-            out = outMessage.toEncryptedXml(wxMpService.getWxMpConfigStorage());
+        } catch (Exception e) {
+            log.error("处理时出错！", e);
+            return;
         }
         log.info("\n组装回复信息：{}", out);
         response.setCharacterEncoding("UTF-8");
         try (PrintWriter writer = response.getWriter()) {
             if (null != messageId) {
                 map.remove(messageId);
+                bMap.remove(messageId);
             }
             writer.println(out);
             writer.flush();
         }
     }
 
-    @GetMapping("/test2")
+    @GetMapping("/callback/test2")
     public void testDraft() {
         try {
             WxMpDraftList draftList = wxMpService.getDraftService().listDraft(0, 1);
@@ -141,7 +155,7 @@ public class CallbackController {
         }
     }
 
-    @GetMapping("/getMenu")
+    @GetMapping("/callback/getMenu")
     public void getMenu() {
         try {
             WxMpMenu menuGet = wxMpService.getMenuService().menuGet();
@@ -151,7 +165,7 @@ public class CallbackController {
         }
     }
 
-    @GetMapping("/setMenu")
+    @GetMapping("/callback/setMenu")
     public void setMenu() {
         try {
             WxMenu menu = new WxMenu();
@@ -163,6 +177,38 @@ public class CallbackController {
         } catch (Exception e) {
             log.error("新建menu错误:{}", e.getMessage());
         }
+    }
+
+    @RequestMapping("/qiniu/getCallback")
+    public void getReturnUrl(HttpServletRequest req, @RequestParam(value = "callbackBody", required = false) String callbackBody) {
+        log.info("url：{}, method:{}", req.getRequestURL(), req.getMethod());
+        StringBuilder body = new StringBuilder();
+        try (BufferedReader reader = req.getReader()) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                body.append(line).append("\n");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        log.info("Request Body: {}", body.toString());
+
+        Map<String, String[]> parameterMap = req.getParameterMap();
+        log.info("Request Parameters: ");
+        parameterMap.forEach((key, values) -> {
+            log.info(key + " = " + String.join(", ", values));
+        });
+
+        log.info("callbackBody: {}", setCallbackBody(req));
+    }
+
+    private String setCallbackBody(HttpServletRequest request) {
+        Map<String, String[]> parameterMap = request.getParameterMap();
+        StringBuilder stringBuilder = new StringBuilder();
+        parameterMap.forEach((key, values) -> {
+            stringBuilder.append(key).append("=").append(values[0]).append("&");
+        });
+        return stringBuilder.toString();
     }
 
     private WxMpXmlOutMessage route(WxMpXmlMessage message) {
@@ -223,11 +269,14 @@ public class CallbackController {
         Long messageId = inMessage.getMsgId();
         long start = System.currentTimeMillis();
         Future<String> future = map.get(messageId);
-        log.info("thread-name:{},future:{}", Thread.currentThread().getName(), future);
+        Boolean flag = bMap.get(messageId);
+        log.info("thread-name:{},future is null:{},flag:{}", Thread.currentThread().getName(), future == null, flag);
         String threadName = Thread.currentThread().getName();
         String res;
 
-        if (future == null) {//第一次
+        if (future == null && (flag == null || !flag)) {//第一次
+            bMap.put(messageId, true);
+            log.error("<-----开始执行完gemini任务----->");
             future = chatThreadPool.submit(() -> gemini(inMessage.getContent()));
             try {
                 res = future.get(outTime, outTimeUnit);
@@ -240,14 +289,14 @@ public class CallbackController {
                 log.error("线程：{} 获取第一次请求的结果，异常:{}", threadName, e.getMessage());
             } catch (TimeoutException e) {
                 long end = System.currentTimeMillis();
-                log.error("线程：{} 执行完gemini任务，耗时{}毫秒，任务超时,feature:{}", threadName, end - start, future);
+                log.error("线程：{} 执行完gemini任务，耗时{}毫秒，任务超时,feature isDone:{}", threadName, end - start, future.isDone());
                 // TODO 超时了，任务添加到map，直接返回，不管了，让后面的请求重试
                 map.put(messageId, future);
             }
             return outMessage;
         }
 
-        if (future.isDone()) {
+        if (future != null && future.isDone()) {
             log.info("<-----线程：{}  here you are done----->", Thread.currentThread().getName());
             try {
                 String result = future.get(outTime, TimeUnit.MILLISECONDS);
@@ -261,14 +310,12 @@ public class CallbackController {
         }
 
         log.info("<-----线程：{}  here you are wait----->", Thread.currentThread().getName());
-        TimeUnit.SECONDS.sleep(1);
         try {
             String result = future.get(secondTime, TimeUnit.MILLISECONDS);
             log.info("result wait:{}", result);
             outMessage = new TextBuilder().build(MarkdownToXmlConverter.convert(result), inMessage, wxMpService);
-        } catch (RuntimeException | ExecutionException | TimeoutException e) {
-            log.error("future wait result error:{}", e.getMessage());
-            throw new RuntimeException(e);
+        }  catch (RuntimeException | ExecutionException | TimeoutException e) {
+            log.error("future wait result error:{}, exception.class:{}", e.getMessage(), e.getClass().getName());
         }
         return outMessage;
     }

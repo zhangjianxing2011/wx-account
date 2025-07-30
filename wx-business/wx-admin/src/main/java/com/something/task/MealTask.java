@@ -1,7 +1,8 @@
-package com.something.schedule;
+package com.something.task;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.something.config.CustomConfigProperties;
 import com.something.constants.DateFormatConstant;
 import com.something.constants.MealTyeEnum;
 import com.something.dao.domain.MealEntity;
@@ -10,6 +11,7 @@ import com.something.dao.service.IMealService;
 import com.something.dao.service.ISignService;
 import com.something.utils.AncdaUtil;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -28,6 +30,7 @@ public class MealTask implements ApplicationRunner {
     private final IMealService mealService;
     private final ISignService signService;
     private final AncdaUtil ancdaUtil;
+    private final CustomConfigProperties customConfigProperties;
 
     public void fetchSignHistoryData() {
         List<String> months = getMonths();
@@ -123,10 +126,10 @@ public class MealTask implements ApplicationRunner {
             }
             MealEntity mealEntity = new MealEntity();
             mealEntity.setTimeNow(cookDate);
-            mealEntity.setBreakfast(breakfast);
-            mealEntity.setLunch(launch);
-            mealEntity.setLunchMiddle(launchMiddle);
-            mealEntity.setFruit(fruit);
+            mealEntity.setBreakfast(subStr(breakfast));
+            mealEntity.setLunch(subStr(launch));
+            mealEntity.setLunchMiddle(subStr(launchMiddle));
+            mealEntity.setFruit(subStr(fruit));
             mealEntity.setSignId(signEntity.getId());
             mealEntity.setOrginData(JSONObject.toJSONString(jsonObject));
             mealService.save(mealEntity);
@@ -136,7 +139,9 @@ public class MealTask implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        fetchSignHistoryData();
+        if (customConfigProperties.getTaskStatus()) {
+            fetchSignHistoryData();
+        }
     }
 
     public static String getLastDayOfMonth(String dateStr) {
@@ -157,6 +162,13 @@ public class MealTask implements ApplicationRunner {
             current = current.plusMonths(1);
         }
         return months;
+    }
+    
+    public String subStr(String str) {
+        if (StringUtils.isEmpty(str)) {
+            return "";
+        }
+        return str.substring(0, str.length() - 1);
     }
 
 

@@ -13,12 +13,6 @@ mybatis-plus:
       logic-delete-field: isDel
       logic-delete-value: 1
 
-custom:
-  authorization: your_authorization_key
-  static-role: your_role:eg:2
-  static-user: your_user_id
-  pic-path: "C:\\rock\\pictures"
-
 # 公众号配置(必填)
 wx:
   mp:
@@ -35,3 +29,13 @@ logging:
     org.springframework.web: INFO
     me.chanjar.weixin: DEBUG
     com.something: DEBUG
+
+custom:
+  authorization: your_authorization_key
+  static-role: your_role:eg:2
+  static-user: your_user_id
+  pic-path: "C:\\rock\\pictures"
+  map-keys: #腾讯地图的key
+    - key1
+    - key2
+  ip-detail-url: https://apis.map.qq.com/ws/location/v1/ip
